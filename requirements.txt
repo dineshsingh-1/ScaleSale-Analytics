@@ -1,5 +1,3 @@
-cd Desktop/Project
-# Edit requirements.txt (paste above)
-git add requirements.txt
-git commit -m "Fix requirements"
-git push
+streamlit
+pandas
+plotly
