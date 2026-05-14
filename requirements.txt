@@ -1,3 +1,7 @@
-streamlit
 pandas
+numpy
+streamlit
 plotly
+openpyxl
+xlrd
+# ONLY package names. No "cd Desktop/Project", no paths, no shell commands.
