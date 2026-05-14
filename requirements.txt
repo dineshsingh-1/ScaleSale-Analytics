@@ -1,7 +1,4 @@
-pandas
-numpy
-streamlit
-plotly
-openpyxl
-xlrd
-# ONLY package names. No "cd Desktop/Project", no paths, no shell commands.
+streamlit>=1.28.0
+   pandas>=2.0.0
+   plotly>=5.14.0
+   numpy>=1.24.0
