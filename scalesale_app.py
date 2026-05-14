@@ -8,7 +8,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import datetime
 import io
-import os
 
 # ============================================
 # PAGE CONFIGURATION
@@ -111,7 +110,7 @@ def analyze_sales_data(df):
     
     # Time analysis
     if 'ORDERDATE' in df.columns:
-        df['ORDERDATE'] = pd.to_datetime(df['ORDERDATE'])
+        df['ORDERDATE'] = pd.to_datetime(df['ORDERDATE'], errors='coerce')
         df['YEAR_MONTH'] = df['ORDERDATE'].dt.to_period('M')
         insights['monthly_revenue'] = df.groupby('YEAR_MONTH')['SALES'].sum() if 'SALES' in df.columns else None
     
@@ -142,7 +141,7 @@ def create_revenue_trend_chart(df):
     if 'ORDERDATE' not in df.columns or 'SALES' not in df.columns:
         return None
     
-    df['ORDERDATE'] = pd.to_datetime(df['ORDERDATE'])
+    df['ORDERDATE'] = pd.to_datetime(df['ORDERDATE'], errors='coerce')
     monthly = df.groupby(df['ORDERDATE'].dt.to_period('M'))['SALES'].sum()
     monthly.index = monthly.index.to_timestamp()
     
@@ -372,10 +371,15 @@ if uploaded_file is None:
 else:
     # File uploaded - process it
     try:
-        # Read file
+        # Read file - IMPROVED DATA HANDLING
         with st.spinner('Loading your data...'):
             if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file, encoding='latin-1')
+                # Try different encodings for CSV files
+                try:
+                    df = pd.read_csv(uploaded_file, encoding='utf-8')
+                except UnicodeDecodeError:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, encoding='latin-1')
             else:
                 df = pd.read_excel(uploaded_file)
         
@@ -385,18 +389,39 @@ else:
         with st.expander("👀 View Data Preview (First 10 rows)"):
             st.dataframe(df.head(10), use_container_width=True)
         
-        # Data cleaning
+        # Data cleaning - IMPROVED VERSION
         with st.spinner("🧹 Cleaning and analyzing data..."):
-            # Handle missing values
+            # Count missing values
             missing_count = df.isnull().sum().sum()
             if missing_count > 0:
-                st.info(f"ℹ️ Found {missing_count} missing values. Cleaning data...")
-                for col in df.columns:
-                    if df[col].isnull().sum() > 0:
-                        if df[col].dtype == 'object':
-                            df[col].fillna('N/A', inplace=True)
-                        else:
-                            df[col].fillna(0, inplace=True)
+                st.info(f"ℹ️ Found {missing_count:,} missing values. Cleaning data...")
+            
+            # Handle string columns properly - convert to string only if needed
+            string_columns = ['ORDERNUMBER', 'CUSTOMERNAME', 'PRODUCTLINE', 'COUNTRY']
+            for col in string_columns:
+                if col in df.columns:
+                    # Fill NaN first, then convert to string
+                    df[col] = df[col].fillna('Unknown').astype(str).str.strip()
+            
+            # Handle numeric columns
+            numeric_columns = ['SALES', 'QUANTITYORDERED']
+            for col in numeric_columns:
+                if col in df.columns:
+                    # Convert to numeric, coercing errors to NaN, then fill with 0
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            
+            # Handle DEALSIZE if it exists
+            if 'DEALSIZE' in df.columns:
+                df['DEALSIZE'] = df['DEALSIZE'].fillna('Unknown').astype(str)
+            
+            # Handle ORDERDATE
+            if 'ORDERDATE' in df.columns:
+                df['ORDERDATE'] = pd.to_datetime(df['ORDERDATE'], errors='coerce')
+                # Drop rows where ORDERDATE couldn't be parsed
+                date_nulls = df['ORDERDATE'].isnull().sum()
+                if date_nulls > 0:
+                    st.warning(f"⚠️ Removed {date_nulls} rows with invalid dates")
+                    df = df[df['ORDERDATE'].notna()]
             
             # Analyze data
             insights = analyze_sales_data(df)
